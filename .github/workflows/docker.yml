@@ -23,7 +23,7 @@ jobs:
 
       - name: Build image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/back-core:latest .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/back-core:latest -f docker/dockerfile .
 
       - name: Push image
         run: |
