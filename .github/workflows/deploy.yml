@@ -2,7 +2,7 @@ name: Deploy to GCP VM
 
 on:
   workflow_run:
-    workflows: ["Build & Push Docker"]
+    workflows: ["Build & Push DockerHub Image"]
     types:
       - completed
 
