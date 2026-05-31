@@ -2,7 +2,7 @@ name: Build & Push Docker
 
 on:
   workflow_run:
-    workflows: ["CI Maven Tests"]
+    workflows: ["Java CI with Maven"]
     types:
       - completed
 
