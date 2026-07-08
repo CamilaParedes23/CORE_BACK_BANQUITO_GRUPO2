@@ -589,7 +589,8 @@ INSERT INTO SUBTIPO_TRANSACCION (CODIGO, NOMBRE, TIPO_MOVIMIENTO_BASE) VALUES
 
 INSERT INTO CUENTA_INSTITUCIONAL (NUMERO_CUENTA, CODIGO, NOMBRE, TIPO_CUENTA) VALUES
 ('9000000001', 'INGRESOS_SERVICIOS_MASIVOS', 'Ingresos por servicios de pagos masivos', 'INGRESO'),
-('9000000002', 'PASIVOS_IVA_RETENIDO', 'Pasivos por IVA retenido/cobrado', 'PASIVO');
+('9000000002', 'PASIVOS_IVA_RETENIDO', 'Pasivos por IVA retenido/cobrado', 'PASIVO'),
+('9000000005', 'IVA_SERVICIOS_MASIVOS', 'IVA generado por servicios de pagos masivos', 'IMPUESTO');
 
 -- ============================================================================
 -- FIN DEL SCRIPT

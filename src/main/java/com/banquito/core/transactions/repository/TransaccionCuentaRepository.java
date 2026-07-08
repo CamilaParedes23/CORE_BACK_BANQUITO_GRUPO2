@@ -2,6 +2,7 @@ package com.banquito.core.transactions.repository;
 
 import com.banquito.core.accounts.model.Cuenta;
 import com.banquito.core.transactions.model.TransaccionCuenta;
+import com.banquito.core.transactions.enums.TipoMovimientoEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,6 +27,22 @@ public interface TransaccionCuentaRepository extends JpaRepository<TransaccionCu
     );
 
     Optional<TransaccionCuenta> findByUuidTransaccion(UUID uuidTransaccion);
+
+    @Query("""
+            SELECT t
+            FROM TransaccionCuenta t
+            WHERE t.uuidGrupoOperacion = :uuidGrupoOperacion
+              AND t.referenciaExterna = :referenciaExterna
+              AND t.subtipoTransaccion.codigo = :codigoSubtipo
+              AND t.tipoMovimiento = :tipoMovimiento
+            ORDER BY t.id DESC
+            """)
+    List<TransaccionCuenta> findLiquidacionCuentaPorGrupoReferenciaSubtipoTipo(
+            @Param("uuidGrupoOperacion") UUID uuidGrupoOperacion,
+            @Param("referenciaExterna") String referenciaExterna,
+            @Param("codigoSubtipo") String codigoSubtipo,
+            @Param("tipoMovimiento") TipoMovimientoEnum tipoMovimiento
+    );
 
     List<TransaccionCuenta> findByNumeroComprobante(String numeroComprobante);
 

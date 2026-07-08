@@ -33,6 +33,10 @@ import com.banquito.core.shared.enums.CanalOrigenEnum;
 import com.banquito.core.shared.exception.ValidationException;
 import com.banquito.core.transactions.dto.api.TransferenciaRequest;
 import com.banquito.core.transactions.dto.api.TransferenciaResponse;
+import com.banquito.core.transactions.model.TransaccionCuenta;
+import com.banquito.core.transactions.model.TransaccionInstitucional;
+import com.banquito.core.transactions.repository.TransaccionCuentaRepository;
+import com.banquito.core.transactions.repository.TransaccionInstitucionalRepository;
 import com.banquito.core.transactions.enums.TipoMovimientoEnum;
 import com.banquito.core.transactions.service.TransaccionService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -60,6 +65,8 @@ public class IntegracionSwitchServiceImpl implements IntegracionSwitchService {
     private final CuentaService cuentaService;
     private final CredencialWebRepository credencialWebRepository;
     private final TransaccionService transaccionService;
+    private final TransaccionCuentaRepository transaccionCuentaRepository;
+    private final TransaccionInstitucionalRepository transaccionInstitucionalRepository;
     private final FeriadoRepository feriadoRepository;
     private final FeriadoService feriadoService;
     private final AuditoriaService auditoriaService;
@@ -468,6 +475,12 @@ public class IntegracionSwitchServiceImpl implements IntegracionSwitchService {
     public LiquidacionServicioSwitchResponse liquidarServicio(LiquidacionServicioSwitchRequest request) {
         validarTotalLiquidacion(request);
 
+        Optional<LiquidacionServicioSwitchResponse> liquidacionExistente = obtenerLiquidacionAplicadaSiExiste(request);
+        if (liquidacionExistente.isPresent()) {
+            registrarLiquidacionIdempotente(request);
+            return liquidacionExistente.get();
+        }
+
         boolean permitirSobregiroLiquidacion = request.permiteSobregiro() == null
                 || Boolean.TRUE.equals(request.permiteSobregiro());
 
@@ -518,6 +531,74 @@ public class IntegracionSwitchServiceImpl implements IntegracionSwitchService {
                 uuidCreditoIngresos,
                 uuidCreditoIva,
                 request.uuidGrupoOperacion()
+        );
+    }
+
+    private Optional<LiquidacionServicioSwitchResponse> obtenerLiquidacionAplicadaSiExiste(
+            LiquidacionServicioSwitchRequest request
+    ) {
+        if (request.uuidGrupoOperacion() == null || request.referenciaExterna() == null
+                || request.referenciaExterna().isBlank()) {
+            return Optional.empty();
+        }
+
+        Optional<TransaccionCuenta> debitoMatriz =
+                transaccionCuentaRepository.findLiquidacionCuentaPorGrupoReferenciaSubtipoTipo(
+                        request.uuidGrupoOperacion(),
+                        request.referenciaExterna(),
+                        "COBRO_COMISION",
+                        TipoMovimientoEnum.DEBITO
+                ).stream().findFirst();
+
+        Optional<TransaccionInstitucional> creditoIngresos =
+                transaccionInstitucionalRepository.findLiquidacionInstitucionalPorGrupoReferenciaSubtipoTipo(
+                        request.uuidGrupoOperacion(),
+                        request.referenciaExterna(),
+                        "INGRESO_SERVICIO_MASIVO",
+                        TipoMovimientoEnum.CREDITO
+                ).stream().findFirst();
+
+        Optional<TransaccionInstitucional> creditoIva =
+                transaccionInstitucionalRepository.findLiquidacionInstitucionalPorGrupoReferenciaSubtipoTipo(
+                        request.uuidGrupoOperacion(),
+                        request.referenciaExterna(),
+                        "IVA_SERVICIO_MASIVO",
+                        TipoMovimientoEnum.CREDITO
+                ).stream().findFirst();
+
+        int movimientosExistentes = 0;
+        movimientosExistentes += debitoMatriz.isPresent() ? 1 : 0;
+        movimientosExistentes += creditoIngresos.isPresent() ? 1 : 0;
+        movimientosExistentes += creditoIva.isPresent() ? 1 : 0;
+
+        if (movimientosExistentes == 0) {
+            return Optional.empty();
+        }
+
+        if (movimientosExistentes == 3) {
+            return Optional.of(IntegracionSwitchMapper.toLiquidacionAplicadaResponse(
+                    debitoMatriz.get().getUuidTransaccion(),
+                    creditoIngresos.get().getUuidTransaccion(),
+                    creditoIva.get().getUuidTransaccion(),
+                    request.uuidGrupoOperacion()
+            ));
+        }
+
+        throw new ValidationException(
+                "Liquidacion de servicio parcialmente aplicada para la referencia: " + request.referenciaExterna()
+        );
+    }
+
+    private void registrarLiquidacionIdempotente(LiquidacionServicioSwitchRequest request) {
+        auditoriaService.registrarEvento(
+                MODULO_INTEGRACION_SWITCH,
+                ACCION_LIQUIDAR_COMISION_IVA,
+                "LIQUIDACION_SERVICIO",
+                request.uuidGrupoOperacion().toString(),
+                ResultadoAuditoriaEnum.EXITOSO,
+                CanalOrigenEnum.SWITCH,
+                "{\"referenciaExterna\":\"" + sanitizarJson(request.referenciaExterna()) +
+                        "\",\"resultado\":\"IDEMPOTENTE_YA_APLICADA\"}"
         );
     }
 
